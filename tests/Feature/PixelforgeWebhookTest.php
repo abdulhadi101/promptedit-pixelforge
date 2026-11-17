@@ -39,7 +39,7 @@ class PixelforgeWebhookTest extends TestCase
             ], $extra)],
         ]);
         $t = time();
-        $sig = "t={$t},v1=" . hash_hmac('sha256', "{$t}.{$body}", 'whsec_test');
+        $sig = "t={$t},v1=".hash_hmac('sha256', "{$t}.{$body}", 'whsec_test');
 
         return $this->call('POST', '/webhooks/pixelforge', [], [], [], [
             'CONTENT_TYPE' => 'application/json', 'HTTP_PIXELFORGE_SIGNATURE' => $sig,
@@ -50,6 +50,28 @@ class PixelforgeWebhookTest extends TestCase
     {
         return ['usage' => ['input_text_tokens' => 10, 'input_image_tokens' => 0, 'output_tokens' => 280, 'reasoning_tokens' => 100, 'total_tokens' => 390],
             'completed_at' => now()->toIso8601ZuluString(), 'image_url' => 'https://example.com/a.png'];
+    }
+
+    public function test_rejects_a_timestamp_older_than_five_minutes(): void
+    {
+        $body = '{}';
+        $old = time() - 301;
+        $sig = 't='.$old.',v1='.hash_hmac('sha256', "{$old}.{$body}", 'whsec_test');
+
+        $this->call('POST', '/webhooks/pixelforge', [], [], [], [
+            'CONTENT_TYPE' => 'application/json', 'HTTP_PIXELFORGE_SIGNATURE' => $sig,
+        ], $body)->assertStatus(400);
+    }
+
+    public function test_ping_event_is_accepted(): void
+    {
+        $body = json_encode(['id' => 'evt_ping', 'object' => 'event', 'type' => 'ping', 'data' => []]);
+        $t = time();
+        $sig = "t={$t},v1=".hash_hmac('sha256', "{$t}.{$body}", 'whsec_test');
+
+        $this->call('POST', '/webhooks/pixelforge', [], [], [], [
+            'CONTENT_TYPE' => 'application/json', 'HTTP_PIXELFORGE_SIGNATURE' => $sig,
+        ], $body)->assertNoContent();
     }
 
     public function test_rejects_bad_signature(): void

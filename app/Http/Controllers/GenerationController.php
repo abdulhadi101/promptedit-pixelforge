@@ -5,9 +5,10 @@ namespace App\Http\Controllers;
 use App\Jobs\SubmitGeneration;
 use App\Models\Generation;
 use App\Services\Pixelforge\CostCalculator;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -44,18 +45,26 @@ class GenerationController extends Controller
         $refs = array_values($data['reference_images'] ?? []);
         $estimate = $calc->estimate($data['prompt'], $data['size'], $data['quality'], count($refs));
 
-        $generation = $request->user()->generations()->firstOrCreate(
-            ['request_id' => $data['request_id']], // a double-click or retry returns the same row
-            [
-                'prompt' => $data['prompt'],
-                'size' => $data['size'],
-                'quality' => $data['quality'],
-                'reference_images' => $refs,
-                'status' => 'queued',
-                'estimated_charge_nano' => $estimate['expected'],
-                'max_charge_nano' => $estimate['max'],
-            ],
-        );
+        try {
+            $generation = $request->user()->generations()->firstOrCreate(
+                ['request_id' => $data['request_id']], // a double-click or retry returns the same row
+                [
+                    'prompt' => $data['prompt'],
+                    'size' => $data['size'],
+                    'quality' => $data['quality'],
+                    'reference_images' => $refs,
+                    'status' => 'queued',
+                    'estimated_charge_nano' => $estimate['expected'],
+                    'max_charge_nano' => $estimate['max'],
+                ],
+            );
+        } catch (UniqueConstraintViolationException) {
+            // Two identical requests raced past firstOrCreate; the unique index
+            // let exactly one insert win, so the loser just re-reads the winner.
+            $generation = $request->user()->generations()
+                ->where('request_id', $data['request_id'])
+                ->firstOrFail();
+        }
 
         if ($generation->wasRecentlyCreated) {
             SubmitGeneration::dispatch($generation->id)->afterCommit();

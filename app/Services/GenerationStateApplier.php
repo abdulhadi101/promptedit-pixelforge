@@ -35,6 +35,12 @@ class GenerationStateApplier
 
             $incoming = $pf['status'];
 
+            if (! isset(self::RANK[$incoming])) {
+                Log::warning('Pixelforge sent an unknown status', ['generation' => $g->id, 'status' => $incoming]);
+
+                return;
+            }
+
             if (self::RANK[$incoming] > self::RANK[$g->status]) {
                 match ($incoming) {
                     'processing' => $this->markProcessing($g, $pf),
