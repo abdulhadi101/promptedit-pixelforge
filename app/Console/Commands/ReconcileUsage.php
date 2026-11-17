@@ -26,13 +26,17 @@ class ReconcileUsage extends Command
             ->groupBy(fn ($g) => $g->completed_at->utc()->toDateString())
             ->map(fn ($rows) => $rows->sum('provider_cost_nano'));
 
+        $providerByDay = collect($usage['data'])
+            ->mapWithKeys(fn (array $day) => [$day['date'] => Money::parseDecimal($day['cost_usd'], 9)]);
+        $dates = $providerByDay->keys()->merge($local->keys())->unique()->sort()->values();
+
         $mismatch = false;
         $rows = [];
-        foreach ($usage['data'] as $day) {
-            $theirs = Money::parseDecimal($day['cost_usd'], 9);
-            $ours = (int) ($local[$day['date']] ?? 0);
+        foreach ($dates as $date) {
+            $theirs = (int) ($providerByDay[$date] ?? 0);
+            $ours = (int) ($local[$date] ?? 0);
             $mismatch |= $theirs !== $ours;
-            $rows[] = [$day['date'], Money::toDecimal($theirs), Money::toDecimal($ours), $theirs === $ours ? 'ok' : 'MISMATCH'];
+            $rows[] = [$date, Money::toDecimal($theirs), Money::toDecimal($ours), $theirs === $ours ? 'ok' : 'MISMATCH'];
         }
 
         $this->table(['date (UTC)', 'pixelforge', 'ours', ''], $rows);

@@ -41,7 +41,9 @@ return [
             'busy_timeout' => null,
             'journal_mode' => null,
             'synchronous' => null,
-            'transaction_mode' => 'DEFERRED',
+            // SQLite has no row-level FOR UPDATE locks. IMMEDIATE reserves the
+            // writer lock at transaction start, serializing settlement and balance checks.
+            'transaction_mode' => 'IMMEDIATE',
         ],
 
         'mysql' => [

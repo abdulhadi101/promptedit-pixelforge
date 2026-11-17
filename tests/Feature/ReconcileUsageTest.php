@@ -66,6 +66,41 @@ class ReconcileUsageTest extends TestCase
         $this->artisan('pixelforge:reconcile')->assertExitCode(1);
     }
 
+    public function test_local_completion_day_missing_from_provider_usage_is_a_mismatch(): void
+    {
+        $this->freezeTime();
+        $this->succeededGeneration(12_500_000);
+
+        Http::fake(['*/v1/usage*' => Http::response([
+            'object' => 'usage',
+            'data' => [],
+        ])]);
+
+        $this->artisan('pixelforge:reconcile')
+            ->expectsTable(
+                ['date (UTC)', 'pixelforge', 'ours', ''],
+                [[now('UTC')->toDateString(), '0.000000000', '0.012500000', 'MISMATCH']],
+            )
+            ->assertExitCode(1);
+    }
+
+    public function test_provider_billed_day_missing_locally_is_a_mismatch(): void
+    {
+        $this->freezeTime();
+        $today = now('UTC')->toDateString();
+        Http::fake(['*/v1/usage*' => Http::response([
+            'object' => 'usage',
+            'data' => [['date' => $today, 'generations' => 1, 'cost_usd' => '0.012500000']],
+        ])]);
+
+        $this->artisan('pixelforge:reconcile')
+            ->expectsTable(
+                ['date (UTC)', 'pixelforge', 'ours', ''],
+                [[$today, '0.012500000', '0.000000000', 'MISMATCH']],
+            )
+            ->assertExitCode(1);
+    }
+
     public function test_failed_generations_never_appear_in_usage(): void
     {
         // A failed local row must not contribute to any day's total, or reconcile

@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 class GenerationSubmissionTest extends TestCase
@@ -46,9 +47,9 @@ class GenerationSubmissionTest extends TestCase
         $this->actingAs($user);
     }
 
-    private function submit(array $extra = []): void
+    private function submit(array $extra = []): TestResponse
     {
-        $this->post('/generations', array_merge([
+        return $this->post('/generations', array_merge([
             'request_id' => fake()->uuid(),
             'prompt' => 'A lighthouse on a cliff at dawn',
             'size' => '1024x1024',
@@ -95,6 +96,25 @@ class GenerationSubmissionTest extends TestCase
 
         $this->assertDatabaseCount('generations', 1);        // one row, not two
         Queue::assertPushed(SubmitGeneration::class, 1);    // submitted once, not twice
+    }
+
+    public function test_idempotent_retry_returns_existing_generation_even_when_balance_is_reserved(): void
+    {
+        $estimate = $this->postJson('/generations/estimate', [
+            'prompt' => 'A lighthouse on a cliff at dawn',
+            'size' => '1024x1024',
+            'quality' => 'medium',
+            'reference_images' => [],
+        ])->json();
+        auth()->user()->forceFill(['balance_nano' => $estimate['max']])->save();
+        $requestId = fake()->uuid();
+
+        $this->submit(['request_id' => $requestId])->assertSessionDoesntHaveErrors('balance');
+        $retry = $this->submit(['request_id' => $requestId]);
+
+        $retry->assertSessionDoesntHaveErrors('balance');
+        $this->assertDatabaseCount('generations', 1);
+        Queue::assertPushed(SubmitGeneration::class, 1);
     }
 
     public function test_different_request_ids_are_separate_generations(): void

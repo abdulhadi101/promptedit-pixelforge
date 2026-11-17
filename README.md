@@ -17,6 +17,10 @@ Pixelforge's exact cost + 25%, in integer nanodollars.
   generation's state or price — row-locked, forward-only, final states immutable — used by
   webhooks, the scheduled poller and submit failures alike. Webhook dedupe inserts the
   event id in the same transaction as the state change.
+- **SQLite locking**: SQLite has no row-level `FOR UPDATE`; its transactions use
+  `BEGIN IMMEDIATE` instead, serializing writers for settlement and credit reservations.
+  This is appropriate for the low-traffic single-container take-home, not high write
+  concurrency; PostgreSQL row locks are preferable at scale.
 - **Submission**: the local row's UUID is both the `Idempotency-Key` and
   `metadata.generation_id`, created before calling Pixelforge; the queued submit job
   retries 429/503/connection errors with `Retry-After` + jitter (bounded) and fails
@@ -75,7 +79,7 @@ and set the key's webhook URL in the Pixelforge dashboard to
 `https://<your-tunnel>/webhooks/pixelforge`.
 
 ```bash
-php artisan test                      # full suite (60 tests)
+php artisan test                      # full suite (64 tests)
 php artisan pixelforge:reconcile      # our per-day provider costs vs GET /v1/usage
 ```
 

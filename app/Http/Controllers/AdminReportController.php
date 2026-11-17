@@ -47,19 +47,23 @@ class AdminReportController extends Controller
             ->get();
 
         // What Pixelforge says it charged us, per UTC day, live from the source of truth.
-        $usage = collect($client->usage($since->toDateString(), now('UTC')->toDateString())['data'] ?? [])
-            ->pluck('cost_usd', 'date');
+        $providerByDay = collect($client->usage($since->toDateString(), now('UTC')->toDateString())['data'] ?? [])
+            ->mapWithKeys(fn (array $day) => [$day['date'] => Money::parseDecimal($day['cost_usd'], 9)]);
+        $localByDay = $days->keyBy('day');
+        $dates = $localByDay->keys()->merge($providerByDay->keys())->unique()->sortDesc()->values();
 
-        $perDay = $days->map(fn ($row) => [
-            'day' => $row->day,
-            'charge_nano' => (int) $row->charge_nano,
-            'provider_cost_nano' => (int) $row->provider_cost_nano,
-            'profit_nano' => (int) $row->profit_nano,
-            // Reported in nanodollars; a differing pair renders as a visible MISMATCH row.
-            'pixelforge_nano' => isset($usage[$row->day])
-                ? Money::parseDecimal($usage[$row->day], 9)
-                : null,
-        ]);
+        $perDay = $dates->map(function (string $day) use ($localByDay, $providerByDay): array {
+            $row = $localByDay->get($day);
+
+            return [
+                'day' => $day,
+                'charge_nano' => (int) ($row->charge_nano ?? 0),
+                'provider_cost_nano' => (int) ($row->provider_cost_nano ?? 0),
+                'profit_nano' => (int) ($row->profit_nano ?? 0),
+                // Union of local/provider dates catches missing records in either direction.
+                'pixelforge_nano' => (int) ($providerByDay[$day] ?? 0),
+            ];
+        });
 
         return Inertia::render('Admin/Report', [
             'perDay' => $perDay,

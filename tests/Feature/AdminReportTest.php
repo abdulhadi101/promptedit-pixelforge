@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\Generation;
 use App\Models\User;
-use App\Support\Money;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -74,7 +73,24 @@ class AdminReportTest extends TestCase
         $this->assertNotSame($row['pixelforge_nano'], $row['provider_cost_nano']); // rendered as MISMATCH
     }
 
-    public function test_failed_generations_are_absent_from_the_report(): void
+    public function test_report_includes_provider_billed_days_missing_from_local_generations(): void
+    {
+        $this->freezeTime();
+        $today = now('UTC')->toDateString();
+        Http::fake(['*/v1/usage*' => Http::response([
+            'object' => 'usage',
+            'data' => [['date' => $today, 'cost_usd' => '0.099000000']],
+        ])]);
+
+        $props = $this->get('/admin/report')->viewData('page')['props'];
+
+        $this->assertCount(1, $props['perDay']);
+        $this->assertSame(0, $props['perDay'][0]['provider_cost_nano']);
+        $this->assertSame(99_000_000, $props['perDay'][0]['pixelforge_nano']);
+        $this->assertSame([], $props['perUser']);
+    }
+
+    public function test_failed_generations_do_not_add_local_cost_but_provider_cost_remains_visible(): void
     {
         $g = $this->succeeded(null, 15_625_000, 12_500_000);
         $g->forceFill(['status' => 'failed', 'charge_nano' => 0, 'provider_cost_nano' => 0])->save();
@@ -86,10 +102,10 @@ class AdminReportTest extends TestCase
         ])]);
 
         $props = $this->get('/admin/report')->viewData('page')['props'];
-        $this->assertSame([], $props['perDay']);   // nothing chargeable: our day table is empty
+        $this->assertSame(0, $props['perDay'][0]['charge_nano']);
+        $this->assertSame(0, $props['perDay'][0]['provider_cost_nano']);
+        $this->assertSame(12_500_000, $props['perDay'][0]['pixelforge_nano']);
         $this->assertSame([], $props['perUser']);
-        // ...so this billing would show as a reconcile mismatch, not a silent report row.
-        $this->assertSame(12_500_000, Money::parseDecimal('0.012500000', 9));
     }
 
     private function succeeded(?User $user, int $charge, int $provider): Generation

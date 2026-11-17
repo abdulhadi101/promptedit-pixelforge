@@ -4,12 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Jobs\SubmitGeneration;
 use App\Models\Generation;
+use App\Models\User;
 use App\Services\Pixelforge\CostCalculator;
 use App\Support\Money;
-use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -46,44 +47,54 @@ class GenerationController extends Controller
         $refs = array_values($data['reference_images'] ?? []);
         $estimate = $calc->estimate($data['prompt'], $data['size'], $data['quality'], count($refs));
 
-        // Affordability: the balance minus the worst-case estimate of anything still
-        // in flight, so several queued generations can never overdraw together.
-        $available = $request->user()->balance_nano
-            - (int) $request->user()->generations()
-                ->whereNotIn('status', ['succeeded', 'failed'])
-                ->sum('max_charge_nano');
+        $result = DB::transaction(function () use ($request, $data, $refs, $estimate): array {
+            // Serialize this user's reservation checks and inserts. Postgres locks
+            // this row; SQLite serializes writers via an IMMEDIATE transaction.
+            $user = User::query()->lockForUpdate()->findOrFail($request->user()->id);
 
-        if ($estimate['max'] > $available) {
+            // Idempotent retries return the original row before affordability is checked.
+            $existing = $user->generations()
+                ->where('request_id', $data['request_id'])
+                ->first();
+
+            if ($existing) {
+                return ['generation' => $existing, 'created' => false, 'available' => null];
+            }
+
+            // Reserve worst-case estimates for unresolved generations.
+            $available = $user->balance_nano
+                - (int) $user->generations()
+                    ->whereNotIn('status', ['succeeded', 'failed'])
+                    ->sum('max_charge_nano');
+
+            if ($estimate['max'] > $available) {
+                return ['generation' => null, 'created' => false, 'available' => max($available, 0)];
+            }
+
+            $generation = $user->generations()->create([
+                'request_id' => $data['request_id'],
+                'prompt' => $data['prompt'],
+                'size' => $data['size'],
+                'quality' => $data['quality'],
+                'reference_images' => $refs,
+                'status' => 'queued',
+                'estimated_charge_nano' => $estimate['expected'],
+                'max_charge_nano' => $estimate['max'],
+            ]);
+
+            return ['generation' => $generation, 'created' => true, 'available' => null];
+        });
+
+        if ($result['generation'] === null) {
             return back()->withErrors(['balance' => sprintf(
                 'Not enough credits: this could cost up to $%s, and you have $%s available. Buy credits to continue.',
                 Money::toDecimal($estimate['max']),
-                Money::toDecimal(max($available, 0)),
+                Money::toDecimal($result['available']),
             )]);
         }
 
-        try {
-            $generation = $request->user()->generations()->firstOrCreate(
-                ['request_id' => $data['request_id']], // a double-click or retry returns the same row
-                [
-                    'prompt' => $data['prompt'],
-                    'size' => $data['size'],
-                    'quality' => $data['quality'],
-                    'reference_images' => $refs,
-                    'status' => 'queued',
-                    'estimated_charge_nano' => $estimate['expected'],
-                    'max_charge_nano' => $estimate['max'],
-                ],
-            );
-        } catch (UniqueConstraintViolationException) {
-            // Two identical requests raced past firstOrCreate; the unique index
-            // let exactly one insert win, so the loser just re-reads the winner.
-            $generation = $request->user()->generations()
-                ->where('request_id', $data['request_id'])
-                ->firstOrFail();
-        }
-
-        if ($generation->wasRecentlyCreated) {
-            SubmitGeneration::dispatch($generation->id)->afterCommit();
+        if ($result['created']) {
+            SubmitGeneration::dispatch($result['generation']->id)->afterCommit();
         }
 
         return back();

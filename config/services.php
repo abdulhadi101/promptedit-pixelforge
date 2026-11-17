@@ -40,7 +40,7 @@ return [
         'api_key' => env('PIXELFORGE_API_KEY'),
         'webhook_secret' => env('PIXELFORGE_WEBHOOK_SECRET'),
         // Comma-separated; the admin report lives at /admin/report.
-        'admin_emails' => array_filter(explode(',', (string) env('PIXELFORGE_ADMIN_EMAILS'))),
+        'admin_emails' => array_filter(array_map('trim', explode(',', (string) env('PIXELFORGE_ADMIN_EMAILS')))),
     ],
 
 ];
