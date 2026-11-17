@@ -39,6 +39,12 @@ const showingNavigationDropdown = ref(false);
                                 >
                                     Dashboard
                                 </NavLink>
+                                <NavLink
+                                    :href="route('generations.index')"
+                                    :active="route().current('generations.index')"
+                                >
+                                    Generate
+                                </NavLink>
                             </div>
                         </div>
 
@@ -164,6 +170,9 @@ const showingNavigationDropdown = ref(false);
                         </div>
 
                         <div class="mt-3 space-y-1">
+                            <ResponsiveNavLink :href="route('generations.index')">
+                                Generate
+                            </ResponsiveNavLink>
                             <ResponsiveNavLink :href="route('profile.edit')">
                                 Profile
                             </ResponsiveNavLink>
