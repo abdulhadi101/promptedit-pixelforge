@@ -1,7 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { router, useForm } from '@inertiajs/vue3'
-import axios from 'axios'
 import { formatNano } from '@/lib/money'
 
 const props = defineProps({ generations: Array })
@@ -29,8 +28,17 @@ watch(
     if (!form.prompt) return (estimate.value = null)
     timer = setTimeout(async () => {
       try {
-        const { data } = await axios.post('/generations/estimate', form.data())
-        estimate.value = data
+        const res = await fetch('/generations/estimate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest', // required for Laravel to treat it as an AJAX request
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+          },
+          body: JSON.stringify(form.data()),
+        })
+        if (!res.ok) throw new Error(`Estimate failed (${res.status})`)
+        estimate.value = await res.json()
         estimateError.value = null
       } catch {
         estimate.value = null

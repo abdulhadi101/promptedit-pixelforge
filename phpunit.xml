@@ -29,6 +29,10 @@
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
+        <env name="APP_TIMEZONE" value="UTC"/>
+        <env name="PIXELFORGE_WEBHOOK_SECRET" value="whsec_test"/>
+        <env name="PIXELFORGE_API_KEY" value="pf_test"/>
+        <env name="PIXELFORGE_BASE_URL" value="https://pixelforge.promptedit.dev/v1"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
