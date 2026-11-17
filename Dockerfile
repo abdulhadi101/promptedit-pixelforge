@@ -81,6 +81,7 @@ COPY --from=node_stage --chown=www-data:www-data /app/public/build ./public/buil
 RUN mkdir -p storage/framework/{sessions,views,cache} \
     storage/logs \
     bootstrap/cache \
+    /var/log/php-fpm \
     /var/log/supervisor \
     /var/log/supervisord \
     && chown -R www-data:www-data storage bootstrap/cache /var/lib/nginx /var/run /var/log/php-fpm /var/log/supervisord /var/log/supervisor \
