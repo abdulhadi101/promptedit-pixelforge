@@ -25,6 +25,9 @@ COPY package.json package-lock.json ./
 
 RUN npm ci
 
+# app.js imports Ziggy from vendor/tightenco/ziggy, so the asset-build stage
+# needs the Composer vendor tree as well as the frontend source.
+COPY --from=composer_stage /app/vendor ./vendor
 COPY vite.config.js tailwind.config.js postcss.config.js ./
 COPY resources ./resources
 
