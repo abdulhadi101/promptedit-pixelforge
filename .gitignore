@@ -22,3 +22,17 @@ yarn-error.log
 /.vscode
 /.zed
 database/database.sqlite
+
+# Local tooling / working files, not part of the app
+/.agents
+/.claude
+/.cursor
+/.junie
+/.ai
+.mcp.json
+AGENTS.md
+CLAUDE.md
+AGENT_PROMPT.md
+boost.json
+opencode.json
+config-snippets/

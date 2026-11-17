@@ -105,5 +105,4 @@ reconcile check exercises failures and duplicate deliveries too.
   idempotent submission, estimate math against the docs' worked example, reconcile, and
   both stretch features.
 
-Secrets live only in `.env` (gitignored). `AGENT_PROMPT.md` is the task statement this
-app was built for, kept on purpose.
+Secrets live only in `.env` (gitignored).
