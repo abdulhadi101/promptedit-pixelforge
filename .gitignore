@@ -36,3 +36,6 @@ AGENT_PROMPT.md
 boost.json
 opencode.json
 config-snippets/
+
+# Candidate-private interview prep, not part of the public repo
+DECISIONS.md

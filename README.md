@@ -2,8 +2,28 @@
 
 Laravel 13 + Vue 3 + Inertia app where signed-in users generate images through the
 [fictional Pixelforge API](https://pixelforge.promptedit.dev/docs) and are billed
-Pixelforge's exact cost + 25%, in integer nanodollars. Every design choice and why is in
-[DECISIONS.md](DECISIONS.md).
+Pixelforge's exact cost + 25%, in integer nanodollars.
+
+## Key decisions
+
+- **Money is integer nanodollars everywhere** (1 USD = 1e9): Pixelforge reports costs with
+  exactly 9 decimals, so provider costs are stored with zero loss and no float ever touches
+  money. The user charge is cost x 1.25, rounded half-up to a whole nanodollar (at most
+  $0.0000000005 in the user's favour).
+- **Estimate vs settlement**: the price shown before submitting is min/expected/max because
+  text tokens (±15%) and reasoning tokens are only known on completion; the final charge
+  uses real usage x the generation's own `rates` snapshot.
+- **Exactly-once settlement**: one code path (`GenerationStateApplier`) changes a
+  generation's state or price — row-locked, forward-only, final states immutable — used by
+  webhooks, the scheduled poller and submit failures alike. Webhook dedupe inserts the
+  event id in the same transaction as the state change.
+- **Submission**: the local row's UUID is both the `Idempotency-Key` and
+  `metadata.generation_id`, created before calling Pixelforge; the queued submit job
+  retries 429/503/connection errors with `Retry-After` + jitter (bounded) and fails
+  permanently and free on 400/422/daily-limit.
+- **Safety nets**: a scheduled poller covers undelivered webhooks;
+  `pixelforge:reconcile` compares per-UTC-completion-day provider costs with
+  `GET /v1/usage` and exits non-zero on any mismatch.
 
 ## What it does
 
