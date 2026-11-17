@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Generation;
+use App\Models\User;
 use App\Services\Pixelforge\CostCalculator;
 use App\Support\Money;
 use Illuminate\Support\Carbon;
@@ -75,18 +76,23 @@ class GenerationStateApplier
     private function markSucceeded(Generation $g, array $pf): void
     {
         $cost = CostCalculator::providerCostNano($pf['usage'], $pf['rates']);
+        $charge = Money::withMarkup($cost);
 
         $g->fill([
             'status' => 'succeeded',
             'usage' => $pf['usage'],
             'rates' => $pf['rates'],
             'provider_cost_nano' => $cost,
-            'charge_nano' => Money::withMarkup($cost),
+            'charge_nano' => $charge,
             'image_url' => $pf['image_url'] ?? null,
             'image_url_expires_at' => $this->time($pf['image_url_expires_at'] ?? null),
             'started_at' => $this->time($pf['started_at'] ?? null) ?? $g->started_at,
             'completed_at' => $this->time($pf['completed_at'] ?? null) ?? now(),
         ]);
+
+        // Same transaction as the state change, so the balance is deducted exactly
+        // once, when the charge is recorded. Failed generations never get here.
+        User::query()->whereKey($g->user_id)->decrement('balance_nano', $charge);
     }
 
     private function markFailed(Generation $g, string $code, string $message, array $pf): void

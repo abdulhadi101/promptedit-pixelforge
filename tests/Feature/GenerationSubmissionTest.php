@@ -41,7 +41,9 @@ class GenerationSubmissionTest extends TestCase
 
         Http::fake(['*/v1/pricing*' => Http::response(self::PRICING)]);
         Queue::fake();
-        $this->actingAs(User::factory()->create());
+        $user = User::factory()->create();
+        $user->forceFill(['balance_nano' => 1_000_000_000])->save(); // fillable is locked to name/email/password
+        $this->actingAs($user);
     }
 
     private function submit(array $extra = []): void

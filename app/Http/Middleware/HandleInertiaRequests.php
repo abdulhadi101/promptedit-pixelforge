@@ -33,6 +33,9 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'auth' => [
                 'user' => $request->user(),
+                'balance_nano' => $request->user()?->balance_nano,
+                'is_admin' => $request->user()
+                    && in_array($request->user()->email, config('services.pixelforge.admin_emails', []), true),
             ],
         ];
     }

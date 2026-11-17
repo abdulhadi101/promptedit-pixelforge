@@ -1,9 +1,13 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { router, useForm } from '@inertiajs/vue3'
+import { Link, router, useForm, usePage } from '@inertiajs/vue3'
 import { formatNano } from '@/lib/money'
 
-const props = defineProps({ generations: Array })
+const props = defineProps({
+  generations: Array,
+})
+const balance = () => usePage().props.auth.balance_nano
+const isAdmin = () => usePage().props.auth.is_admin
 
 const form = useForm({
   request_id: crypto.randomUUID(),
@@ -70,7 +74,26 @@ onBeforeUnmount(() => clearInterval(poll))
 
 <template>
   <div class="mx-auto max-w-4xl space-y-8 p-6">
+    <div class="flex items-center justify-between">
+      <h1 class="text-xl font-semibold">Generate images</h1>
+      <div class="flex items-center gap-3 text-sm">
+        <span v-if="isAdmin()">
+          <Link :href="route('admin.report')" class="text-gray-500 underline">Admin report</Link>
+        </span>
+        <span class="rounded bg-gray-100 px-3 py-1">
+          Balance: <strong>{{ formatNano(balance()) }}</strong>
+        </span>
+        <button
+          @click="router.post(route('credits.store'), {}, { preserveScroll: true })"
+          class="rounded bg-emerald-600 px-3 py-1 text-white"
+        >
+          Buy credits (+$10)
+        </button>
+      </div>
+    </div>
+
     <form class="space-y-4 rounded-lg border p-4" @submit.prevent="submit">
+      <p v-if="form.errors.balance" class="rounded bg-red-50 p-2 text-sm text-red-600">{{ form.errors.balance }}</p>
       <textarea v-model="form.prompt" rows="3" maxlength="4000" placeholder="Describe the image..." class="w-full rounded border p-2" />
       <p v-if="form.errors.prompt" class="text-sm text-red-600">{{ form.errors.prompt }}</p>
 

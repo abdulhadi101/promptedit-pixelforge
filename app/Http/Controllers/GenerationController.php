@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Jobs\SubmitGeneration;
 use App\Models\Generation;
 use App\Services\Pixelforge\CostCalculator;
+use App\Support\Money;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -44,6 +45,21 @@ class GenerationController extends Controller
         $data = $this->validated($request) + $request->validate(['request_id' => ['required', 'uuid']]);
         $refs = array_values($data['reference_images'] ?? []);
         $estimate = $calc->estimate($data['prompt'], $data['size'], $data['quality'], count($refs));
+
+        // Affordability: the balance minus the worst-case estimate of anything still
+        // in flight, so several queued generations can never overdraw together.
+        $available = $request->user()->balance_nano
+            - (int) $request->user()->generations()
+                ->whereNotIn('status', ['succeeded', 'failed'])
+                ->sum('max_charge_nano');
+
+        if ($estimate['max'] > $available) {
+            return back()->withErrors(['balance' => sprintf(
+                'Not enough credits: this could cost up to $%s, and you have $%s available. Buy credits to continue.',
+                Money::toDecimal($estimate['max']),
+                Money::toDecimal(max($available, 0)),
+            )]);
+        }
 
         try {
             $generation = $request->user()->generations()->firstOrCreate(
