@@ -82,38 +82,50 @@ php artisan pixelforge:reconcile      # our per-day provider costs vs GET /v1/us
 Try the provider's misbehaviour on purpose by putting these in prompts: `[blocked]`,
 `[overloaded]`, `[fail]`, `[succeed]`, `[slow]`, `[duplicate]`.
 
-## Deploy (Docker on a VPS)
+## Deploy (Dokploy on a VPS)
 
-`deploy/` contains a Dockerfile (php-fpm + a Node stage that builds the assets), an nginx
-config and a compose file with **five services**: `app` (php-fpm), `web` (nginx:80),
-`db` (Postgres 17), `worker` (`queue:work`), `scheduler` (`schedule:work`).
+The repo root has a `Dockerfile` that builds a **single container** (nginx + php-fpm +
+supervisor running the queue worker and the scheduler) listening on port 80 — Dokploy
+handles the domain and TLS. A `docker/` directory holds the nginx, PHP-FPM and supervisor
+configuration. Dokploy also provides the Postgres service.
 
-```bash
-# on the VPS, in deploy/
-cat > .env <<'EOF'   # never commit this file
-APP_URL=https://your-domain
-APP_KEY=base64:...            # php artisan key:generate --show, from any machine
-DB_PASSWORD=...
-PIXELFORGE_API_KEY=pf_prod_...            # a SEPARATE key for production
-PIXELFORGE_WEBHOOK_SECRET=whsec_prod_...
-PIXELFORGE_ADMIN_EMAILS=you@example.com
-EOF
+1. In Dokploy, create a **Postgres** service first. Note its internal host (the service
+   name), database, user and password.
+2. Create an application from this repo (Dockerfile build), open port `80`.
+3. Set the environment variables on the app:
 
-docker compose build
-docker compose up -d
-docker compose run --rm app php artisan migrate --force
-```
+   ```
+   APP_ENV=production
+   APP_DEBUG=false
+   APP_URL=https://your-dokploy-domain
+   APP_KEY=base64:...           # php artisan key:generate --show, run anywhere
+   APP_TIMEZONE=UTC
+   DB_CONNECTION=pgsql
+   DB_HOST=<postgres service name>
+   DB_PORT=5432
+   DB_DATABASE=<database>
+   DB_USERNAME=<user>
+   DB_PASSWORD=<password>
+   SESSION_DRIVER=database
+   CACHE_STORE=database
+   QUEUE_CONNECTION=database
+   LOG_CHANNEL=stderr
+   PIXELFORGE_API_KEY=pf_prod_...            # a SEPARATE key for production
+   PIXELFORGE_WEBHOOK_SECRET=whsec_prod_...  # that key's signing secret
+   PIXELFORGE_ADMIN_EMAILS=you@example.com
+   RUN_MIGRATIONS=true       # migrations run once at container start
+   ```
 
-Then in the Pixelforge dashboard, set the **production key's** webhook URL to
-`https://your-domain/webhooks/pixelforge` (TLS-terminating reverse proxy optional but
-recommended in front of nginx). Verify with:
+4. Deploy, then in the Pixelforge dashboard set the **production key's** webhook URL to
+   `https://your-dokploy-domain/webhooks/pixelforge`.
+5. Verify:
 
-```bash
-docker compose exec app php artisan pixelforge:reconcile   # must show no MISMATCH
-```
+   ```bash
+   docker exec -it <container> php artisan pixelforge:reconcile   # must show no MISMATCH
+   ```
 
-Generate a few images with `[fail]`, `[duplicate]` and `[slow]` prompts first so the
-reconcile check exercises failures and duplicate deliveries too.
+   Generate a few images with `[fail]`, `[duplicate]` and `[slow]` prompts first so the
+   reconcile check exercises failures and duplicate deliveries too.
 
 ## Repository layout notes
 
