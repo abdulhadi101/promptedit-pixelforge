@@ -75,6 +75,7 @@ COPY --chown=www-data:www-data . .
 
 # Vendor and built assets from the build stages
 COPY --from=composer_stage --chown=www-data:www-data /app/vendor ./vendor
+COPY --from=composer_stage --chown=www-data:www-data /app/bootstrap/cache ./bootstrap/cache
 COPY --from=node_stage --chown=www-data:www-data /app/public/build ./public/build
 
 # Runtime directories

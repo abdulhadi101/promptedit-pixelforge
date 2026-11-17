@@ -20,9 +20,9 @@ if [ "${DB_CONNECTION:-sqlite}" = "sqlite" ]; then
 fi
 
 echo "Caching configuration and routes..."
-php artisan config:cache || echo "Config cache failed, continuing..."
-php artisan route:cache || echo "Route cache failed, continuing..."
-php artisan view:cache || echo "View cache failed, continuing..."
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
 
 # Run migrations (enable RUN_MIGRATIONS=true on one deploy instance)
 if [ "$RUN_MIGRATIONS" = "true" ]; then

@@ -7,5 +7,6 @@ storage/framework/sessions/*
 storage/framework/views/*
 public/build
 database/database.sqlite
+bootstrap/cache/*.php
 .git
 config-snippets
