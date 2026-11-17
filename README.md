@@ -87,11 +87,12 @@ Try the provider's misbehaviour on purpose by putting these in prompts: `[blocke
 The repo root has a `Dockerfile` that builds a **single container** (nginx + php-fpm +
 supervisor running the queue worker and the scheduler) listening on port 80 — Dokploy
 handles the domain and TLS. A `docker/` directory holds the nginx, PHP-FPM and supervisor
-configuration. Dokploy also provides the Postgres service.
+configuration. This deployment uses SQLite, so no database service is needed.
 
-1. In Dokploy, create a **Postgres** service first. Note its internal host (the service
-   name), database, user and password.
-2. Create an application from this repo (Dockerfile build), open port `80`.
+1. Create an application from this repo (Dockerfile build), open port `80`.
+2. Add a **persistent volume** in Dokploy, mounted at `/var/lib/promptedit`. It keeps the
+   SQLite database across container rebuilds and redeployments; without it, database data
+   can be lost.
 3. Set the environment variables on the app:
 
    ```
@@ -100,12 +101,8 @@ configuration. Dokploy also provides the Postgres service.
    APP_URL=https://your-dokploy-domain
    APP_KEY=base64:...           # php artisan key:generate --show, run anywhere
    APP_TIMEZONE=UTC
-   DB_CONNECTION=pgsql
-   DB_HOST=<postgres service name>
-   DB_PORT=5432
-   DB_DATABASE=<database>
-   DB_USERNAME=<user>
-   DB_PASSWORD=<password>
+   DB_CONNECTION=sqlite
+   DB_DATABASE=/var/lib/promptedit/database.sqlite
    SESSION_DRIVER=database
    CACHE_STORE=database
    QUEUE_CONNECTION=database

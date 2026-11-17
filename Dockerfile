@@ -41,12 +41,12 @@ RUN apk add --no-cache \
     nginx \
     supervisor \
     libzip-dev \
-    postgresql-dev \
+    sqlite-dev \
     bash \
     shadow
 
 # Install PHP extensions
-RUN docker-php-ext-install -j$(nproc) pdo_pgsql opcache pcntl zip
+RUN docker-php-ext-install -j$(nproc) pdo_sqlite opcache pcntl zip
 
 # Install Composer (used for occasional one-off maintenance in the container)
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
@@ -81,11 +81,12 @@ COPY --from=node_stage --chown=www-data:www-data /app/public/build ./public/buil
 RUN mkdir -p storage/framework/{sessions,views,cache} \
     storage/logs \
     bootstrap/cache \
+    /var/lib/promptedit \
     /var/log/php-fpm \
     /var/log/supervisor \
     /var/log/supervisord \
-    && chown -R www-data:www-data storage bootstrap/cache /var/lib/nginx /var/run /var/log/php-fpm /var/log/supervisord /var/log/supervisor \
-    && chmod -R 775 storage bootstrap/cache /var/lib/nginx /var/log/php-fpm /var/log/supervisord /var/log/supervisor
+    && chown -R www-data:www-data storage bootstrap/cache /var/lib/promptedit /var/lib/nginx /var/run /var/log/php-fpm /var/log/supervisord /var/log/supervisor \
+    && chmod -R 775 storage bootstrap/cache /var/lib/promptedit /var/lib/nginx /var/log/php-fpm /var/log/supervisord /var/log/supervisor
 
 EXPOSE 80
 
